@@ -1,15 +1,19 @@
 /* Hello Triangle - código adaptado de https://learnopengl.com/#!Getting-started/Hello-Triangle
  *
  * Adaptado por Rossana Baptista Queiroz
- * para a disciplina de Processamento Gráfico - Jogos Digitais - Unisinos
+ * para as disciplinas de Processamento Gráfico/Computação Gráfica - Unisinos
  * Versão inicial: 7/4/2017
- * Última atualização em 12/05/2023
+ * Última atualização em 12/08/2024
  *
  */
 
 #include <iostream>
 #include <string>
 #include <assert.h>
+
+#include <vector>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -31,25 +35,28 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 // Protótipos das funções
 int setupShader();
 int setupGeometry();
+int loadSimpleOBJ(string filePATH, int& nVertices);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
 const GLuint WIDTH = 1000, HEIGHT = 800;
 
 // Código fonte do Vertex Shader (em GLSL): ainda hardcoded
-const GLchar* vertexShaderSource = "#version 450\n"
+const GLchar* vertexShaderSource = "#version 430\n"
 "layout (location = 0) in vec3 position;\n"
 "layout (location = 1) in vec3 color;\n"
 "uniform mat4 model;\n"
+"uniform mat4 projection;\n"
+"uniform mat4 view;\n"
 "out vec4 finalColor;\n"
 "void main()\n"
 "{\n"
 //...pode ter mais linhas de código aqui!
-"gl_Position = model * vec4(position, 1.0);\n"
+"gl_Position = projection * view * model * vec4(position, 1.0);\n"
 "finalColor = vec4(color, 1.0);\n"
 "}\0";
 
 //Códifo fonte do Fragment Shader (em GLSL): ainda hardcoded
-const GLchar* fragmentShaderSource = "#version 450\n"
+const GLchar* fragmentShaderSource = "#version 430\n"
 "in vec4 finalColor;\n"
 "out vec4 color;\n"
 "void main()\n"
@@ -57,7 +64,19 @@ const GLchar* fragmentShaderSource = "#version 450\n"
 "color = finalColor;\n"
 "}\n\0";
 
-bool rotateX=false, rotateY=false, rotateZ=false;
+bool rotateX = false, rotateY = false, rotateZ = false;
+
+//Variáveis globais da câmera
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0, -1.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+struct Object
+{
+	GLuint VAO; //Índice do buffer de geometria
+	int nVertices; //nro de vértices
+	glm::mat4 model; //matriz de transformações do objeto
+};
 
 // Função MAIN
 int main()
@@ -70,7 +89,7 @@ int main()
 	//Sugestão: comente essas linhas de código para desobrir a versão e
 	//depois atualize (por exemplo: 4.5 com 4 e 5)
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	//glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+	//glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	//glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	//Essencial para computadores da Apple
@@ -107,20 +126,28 @@ int main()
 	// Compilando e buildando o programa de shader
 	GLuint shaderID = setupShader();
 
-	// Gerando um buffer simples, com a geometria de um triângulo
-	GLuint VAO = setupGeometry();
+	Object obj;
+	obj.VAO = loadSimpleOBJ("Suzanne.obj", obj.nVertices);
 
 
 	glUseProgram(shaderID);
 
+
+	//Matriz de modelo
 	glm::mat4 model = glm::mat4(1); //matriz identidade;
 	GLint modelLoc = glGetUniformLocation(shaderID, "model");
-	//
 	model = glm::rotate(model, /*(GLfloat)glfwGetTime()*/glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-	glUniformMatrix4fv(modelLoc, 1, FALSE, glm::value_ptr(model));
+	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
+	//Matriz de view
+	glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, 0.0f), cameraUp);
+	glUniformMatrix4fv(glGetUniformLocation(shaderID, "view"), 1, GL_FALSE, glm::value_ptr(view));
+	//Matriz de projeção
+	//glm::mat4 projection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -1.0f, 1.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(39.6f), (float)WIDTH / HEIGHT, 0.1f, 100.0f);
+	glUniformMatrix4fv(glGetUniformLocation(shaderID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
 	glEnable(GL_DEPTH_TEST);
-
 
 	// Loop da aplicação - "game loop"
 	while (!glfwWindowShouldClose(window))
@@ -129,7 +156,7 @@ int main()
 		glfwPollEvents();
 
 		// Limpa o buffer de cor
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f); //cor de fundo
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f); //cor de fundo
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glLineWidth(10);
@@ -137,41 +164,42 @@ int main()
 
 		float angle = (GLfloat)glfwGetTime();
 
-		model = glm::mat4(1); 
+		obj.model = glm::mat4(1); //matriz identidade 
 		if (rotateX)
 		{
-			model = glm::rotate(model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
-			
+			obj.model = glm::rotate(obj.model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
+
 		}
 		else if (rotateY)
 		{
-			model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
+			obj.model = glm::rotate(obj.model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
 
 		}
 		else if (rotateZ)
 		{
-			model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+			obj.model = glm::rotate(obj.model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
 
 		}
 
-		glUniformMatrix4fv(modelLoc, 1, FALSE, glm::value_ptr(model));
-		// Chamada de desenho - drawcall
-		// Poligono Preenchido - GL_TRIANGLES
-		
-		glBindVertexArray(VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 18);
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(obj.model));
+
+		//Atualizar a matriz de view
+		//Matriz de view
+		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+		glUniformMatrix4fv(glGetUniformLocation(shaderID, "view"), 1, GL_FALSE, glm::value_ptr(view));
+
 
 		// Chamada de desenho - drawcall
-		// CONTORNO - GL_LINE_LOOP
-		
-		glDrawArrays(GL_POINTS, 0, 18);
-		glBindVertexArray(0);
+		// Poligono Preenchido - GL_TRIANGLES
+		glBindVertexArray(obj.VAO);
+		glDrawArrays(GL_TRIANGLES, 0, obj.nVertices);
+
 
 		// Troca os buffers da tela
 		glfwSwapBuffers(window);
 	}
 	// Pede pra OpenGL desalocar os buffers
-	glDeleteVertexArrays(1, &VAO);
+	glDeleteVertexArrays(1, &obj.VAO);
 	// Finaliza a execução da GLFW, limpando os recursos alocados por ela
 	glfwTerminate();
 	return 0;
@@ -205,6 +233,27 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		rotateY = false;
 		rotateZ = true;
 	}
+
+	//Verifica a movimentação da câmera
+	float cameraSpeed = 0.05f;
+
+	if ((key == GLFW_KEY_W || key == GLFW_KEY_UP) && action == GLFW_PRESS)
+	{
+		cameraPos += cameraSpeed * cameraFront;
+	}
+	if ((key == GLFW_KEY_S || key == GLFW_KEY_DOWN) && action == GLFW_PRESS)
+	{
+		cameraPos -= cameraSpeed * cameraFront;
+	}
+	if ((key == GLFW_KEY_A || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
+	{
+		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	}
+	if ((key == GLFW_KEY_D || key == GLFW_KEY_RIGHT) && action == GLFW_PRESS)
+	{
+		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	}
+
 
 
 
@@ -281,22 +330,22 @@ int setupGeometry()
 		  0.5, -0.5,  0.5, 0.0, 1.0, 1.0,
 		  0.5, -0.5, -0.5, 1.0, 0.0, 1.0,
 
-		 //
-		 -0.5, -0.5, -0.5, 1.0, 1.0, 0.0,
-		  0.0,  0.5,  0.0, 1.0, 1.0, 0.0,
-		  0.5, -0.5, -0.5, 1.0, 1.0, 0.0,
+		  //
+		  -0.5, -0.5, -0.5, 1.0, 1.0, 0.0,
+		   0.0,  0.5,  0.0, 1.0, 1.0, 0.0,
+		   0.5, -0.5, -0.5, 1.0, 1.0, 0.0,
 
-		  -0.5, -0.5, -0.5, 1.0, 0.0, 1.0,
-		  0.0,  0.5,  0.0, 1.0, 0.0, 1.0,
-		  -0.5, -0.5, 0.5, 1.0, 0.0, 1.0,
+		   -0.5, -0.5, -0.5, 1.0, 0.0, 1.0,
+		   0.0,  0.5,  0.0, 1.0, 0.0, 1.0,
+		   -0.5, -0.5, 0.5, 1.0, 0.0, 1.0,
 
-		   -0.5, -0.5, 0.5, 1.0, 1.0, 0.0,
-		  0.0,  0.5,  0.0, 1.0, 1.0, 0.0,
-		  0.5, -0.5, 0.5, 1.0, 1.0, 0.0,
+			-0.5, -0.5, 0.5, 1.0, 1.0, 0.0,
+		   0.0,  0.5,  0.0, 1.0, 1.0, 0.0,
+		   0.5, -0.5, 0.5, 1.0, 1.0, 0.0,
 
-		   0.5, -0.5, 0.5, 0.0, 1.0, 1.0,
-		  0.0,  0.5,  0.0, 0.0, 1.0, 1.0,
-		  0.5, -0.5, -0.5, 0.0, 1.0, 1.0,
+			0.5, -0.5, 0.5, 0.0, 1.0, 1.0,
+		   0.0,  0.5,  0.0, 0.0, 1.0, 1.0,
+		   0.5, -0.5, -0.5, 0.0, 1.0, 1.0,
 
 
 	};
@@ -318,7 +367,7 @@ int setupGeometry()
 	// Vincula (bind) o VAO primeiro, e em seguida  conecta e seta o(s) buffer(s) de vértices
 	// e os ponteiros para os atributos 
 	glBindVertexArray(VAO);
-	
+
 	//Para cada atributo do vertice, criamos um "AttribPointer" (ponteiro para o atributo), indicando: 
 	// Localização no shader * (a localização dos atributos devem ser correspondentes no layout especificado no vertex shader)
 	// Numero de valores que o atributo tem (por ex, 3 coordenadas xyz) 
@@ -326,15 +375,14 @@ int setupGeometry()
 	// Se está normalizado (entre zero e um)
 	// Tamanho em bytes 
 	// Deslocamento a partir do byte zero 
-	
+
 	//Atributo posição (x, y, z)
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
 	glEnableVertexAttribArray(0);
 
 	//Atributo cor (r, g, b)
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3*sizeof(GLfloat)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(1);
-
 
 
 	// Observe que isso é permitido, a chamada para glVertexAttribPointer registrou o VBO como o objeto de buffer de vértice 
@@ -345,4 +393,143 @@ int setupGeometry()
 	glBindVertexArray(0);
 
 	return VAO;
+}
+
+int loadSimpleOBJ(string filePath, int& nVertices)
+{
+	vector <glm::vec3> vertices;
+	vector <glm::vec2> texCoords;
+	vector <glm::vec3> normals;
+	vector <GLfloat> vBuffer;
+
+	glm::vec3 color = glm::vec3(1.0, 0.0, 0.0);
+
+	ifstream arqEntrada;
+
+	arqEntrada.open(filePath.c_str());
+	if (arqEntrada.is_open())
+	{
+		//Fazer o parsing
+		string line;
+		while (!arqEntrada.eof())
+		{
+			getline(arqEntrada, line);
+			istringstream ssline(line);
+			string word;
+			ssline >> word;
+			if (word == "v")
+			{
+				glm::vec3 vertice;
+				ssline >> vertice.x >> vertice.y >> vertice.z;
+				//cout << vertice.x << " " << vertice.y << " " << vertice.z << endl;
+				vertices.push_back(vertice);
+
+			}
+			if (word == "vt")
+			{
+				glm::vec2 vt;
+				ssline >> vt.s >> vt.t;
+				//cout << vertice.x << " " << vertice.y << " " << vertice.z << endl;
+				texCoords.push_back(vt);
+
+			}
+			if (word == "vn")
+			{
+				glm::vec3 normal;
+				ssline >> normal.x >> normal.y >> normal.z;
+				//cout << vertice.x << " " << vertice.y << " " << vertice.z << endl;
+				normals.push_back(normal);
+
+			}
+			else if (word == "f")
+			{
+				while (ssline >> word)
+				{
+					int vi, ti, ni;
+					istringstream ss(word);
+					std::string index;
+
+					// Pega o índice do vértice
+					std::getline(ss, index, '/');
+					vi = std::stoi(index) - 1;  // Ajusta para índice 0
+
+					// Pega o índice da coordenada de textura
+					std::getline(ss, index, '/');
+					ti = std::stoi(index) - 1;
+
+					// Pega o índice da normal
+					std::getline(ss, index);
+					ni = std::stoi(index) - 1;
+
+					//Recuperando os vértices do indice lido
+					vBuffer.push_back(vertices[vi].x);
+					vBuffer.push_back(vertices[vi].y);
+					vBuffer.push_back(vertices[vi].z);
+
+					//Atributo cor
+					vBuffer.push_back(color.r);
+					vBuffer.push_back(color.g);
+					vBuffer.push_back(color.b);
+
+
+					// Exibindo os índices para verificação
+					// std::cout << "v: " << vi << ", vt: " << ti << ", vn: " << ni << std::endl;
+				}
+
+			}
+		}
+
+		arqEntrada.close();
+
+		cout << "Gerando o buffer de geometria..." << endl;
+		GLuint VBO, VAO;
+
+		//Geração do identificador do VBO
+		glGenBuffers(1, &VBO);
+
+		//Faz a conexão (vincula) do buffer como um buffer de array
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+		//Envia os dados do array de floats para o buffer da OpenGl
+		glBufferData(GL_ARRAY_BUFFER, vBuffer.size() * sizeof(GLfloat), vBuffer.data(), GL_STATIC_DRAW);
+
+		//Geração do identificador do VAO (Vertex Array Object)
+		glGenVertexArrays(1, &VAO);
+
+		// Vincula (bind) o VAO primeiro, e em seguida  conecta e seta o(s) buffer(s) de vértices
+		// e os ponteiros para os atributos 
+		glBindVertexArray(VAO);
+
+		//Para cada atributo do vertice, criamos um "AttribPointer" (ponteiro para o atributo), indicando: 
+		// Localização no shader * (a localização dos atributos devem ser correspondentes no layout especificado no vertex shader)
+		// Numero de valores que o atributo tem (por ex, 3 coordenadas xyz) 
+		// Tipo do dado
+		// Se está normalizado (entre zero e um)
+		// Tamanho em bytes 
+		// Deslocamento a partir do byte zero 
+
+		//Atributo posição (x, y, z)
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
+		glEnableVertexAttribArray(0);
+
+		//Atributo cor (r, g, b)
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+		glEnableVertexAttribArray(1);
+
+		// Observe que isso é permitido, a chamada para glVertexAttribPointer registrou o VBO como o objeto de buffer de vértice 
+		// atualmente vinculado - para que depois possamos desvincular com segurança
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		// Desvincula o VAO (é uma boa prática desvincular qualquer buffer ou array para evitar bugs medonhos)
+		glBindVertexArray(0);
+
+		nVertices = vBuffer.size() / 2;
+		return VAO;
+
+	}
+	else
+	{
+		cout << "Erro ao tentar ler o arquivo " << filePath << endl;
+		return -1;
+	}
 }
