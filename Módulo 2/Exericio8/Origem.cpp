@@ -127,7 +127,7 @@ int main()
 	GLuint shaderID = setupShader();
 
 	Object obj;
-	obj.VAO = loadSimpleOBJ("Suzanne.obj", obj.nVertices);
+	obj.VAO = loadSimpleOBJ("../../3D_Models/Cube/Cube.obj", obj.nVertices);
 
 
 	glUseProgram(shaderID);
