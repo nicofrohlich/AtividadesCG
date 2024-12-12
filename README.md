@@ -13,6 +13,6 @@
 **Módulo 3 Link**: [Projeto Módulo 3](https://github.com/nicofrohlich/AtividadesCG/tree/main/M%C3%B3dulo%203)
 \
 \
-![Gravando2024-12-12025241-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/c8c00189-fbfe-4a0b-bf20-dc391eaaf1e7)
+![Modulo3-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/24e21a71-4d4b-4c8a-8241-fc2cc3fa0d40)
 
 
