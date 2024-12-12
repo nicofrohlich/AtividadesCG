@@ -41,6 +41,7 @@ int generateCircle(float radius, int nPoints);
 int setupSprite();
 int loadTexture(string path);
 int loadSimpleObj(string filepath, int& nVerts, glm::vec3 color);
+int mtlTextureName(string filepath);
 void controlRender(glm::mat4 model, float angle, GLuint shaderID);
 
 // Dimensões da janela (pode ser alterado em tempo de execução)
@@ -93,6 +94,9 @@ int main() {
 	int nVerts;
 	GLuint VAO = loadSimpleObj("../../3D_Models/Cube/cube.obj", nVerts, glm::vec3(0, 0, 0));
 
+	// Lendo o caminho da textura do arquivo mtl
+	mtlTextureName("../../3D_Models/Cube/cube.mtl");
+
 	// Ativando o shader
 	glUseProgram(shader.ID);
 
@@ -112,7 +116,7 @@ int main() {
 		glfwPollEvents();
 
 		// Limpa o buffer de cor
-		glClearColor(0.8f, 0.8f, 0.8f, 1.0f); // cor de fundo
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f); //cor de fundo
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		angle = (float)glfwGetTime();
@@ -519,6 +523,32 @@ int loadSimpleObj(string filepath, int& nVerts, glm::vec3 color) {
 	// Desvincula o VAO (é uma boa prática desvincular qualquer buffer ou array para evitar bugs medonhos)
 	glBindVertexArray(0);
 	return VAO;
+}
+
+int mtlTextureName(string filepath) {
+	ifstream inputFile;
+	inputFile.open(filepath.c_str());
+	if (inputFile.is_open()) {
+		char line[100];
+		string sline;
+
+		while (!inputFile.eof()) {
+			inputFile.getline(line, 100);
+			sline = line;
+			string word;
+			istringstream ssline(line);
+			ssline >> word;
+
+			if (word == "map_Kd") {
+				cout << "Nome do arquivo da textura a ser aplicada na superfície do material para modificar sua aparência difusa:\n" << sline << endl;
+				return 0;
+			}
+		}
+		cout << "Não foi encontrado o nome do arquivo da textura..." << endl;
+		return 1;
+	}
+	cout << "Não foi possível ler o arquivo mtl..." << endl;
+	return 1;
 }
 
 void controlRender(glm::mat4 model, float angle, GLuint shaderID) {
