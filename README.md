@@ -1,3 +1,6 @@
+# Integrantes do Projeto: 
+## Luiz Felipe Giacobbo, Nícolas Freitas e Vinicius Vargas
+
 **Módulo 1 Link**: [Projeto Módulo 1](https://github.com/nicofrohlich/AtividadesCG/tree/main/M%C3%B3dulo%201)
 \
 \
