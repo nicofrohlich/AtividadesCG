@@ -55,6 +55,12 @@ glm::mat4 projection = glm::mat4(1); // matrix identidade
 const float pi = 3.1419f;
 
 int main() {
+
+
+	glm::vec3 lightPos(1.2f, 1.0f, 2.0f);  // Posição da luz
+	glm::vec3 viewPos(0.0f, 0.0f, 3.0f);   // Posição da câmera
+	glm::vec3 lightColor(1.0f, 1.0f, 1.0f); // Cor da luz branca
+
 	// Inicialização da GLFW
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -104,19 +110,40 @@ int main() {
 	glUniform1i(glGetUniformLocation(shader.ID, "tex_buffer"), 0);
 
 	// Criando a matriz de projeção usando a GLM
-	projection = glm::ortho(-3.0, 3.0, -3.0, 3.0, -10.0, 10.0);
+	projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
 	GLint projLoc = glGetUniformLocation(shader.ID, "projection");
 	glUniformMatrix4fv(projLoc, 1, FALSE, glm::value_ptr(projection));
 
 	glEnable(GL_DEPTH_TEST);
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+	// Ativando o shader
+	glUseProgram(shader.ID);
+
+	// Passando as informações de iluminação
+	glUniform3fv(glGetUniformLocation(shader.ID, "lightPos"), 1, glm::value_ptr(lightPos));
+	glUniform3fv(glGetUniformLocation(shader.ID, "viewPos"), 1, glm::value_ptr(viewPos));
+	glUniform3fv(glGetUniformLocation(shader.ID, "lightColor"), 1, glm::value_ptr(lightColor));
+
+	lightPos.x = sin(glfwGetTime()) * 2.0f;
+	lightPos.z = cos(glfwGetTime()) * 2.0f;
+	glUniform3fv(glGetUniformLocation(shader.ID, "lightPos"), 1, glm::value_ptr(lightPos));
+
+	glm::mat4 view = glm::lookAt(
+		glm::vec3(0.0f, 0.0f, 3.0f), // Posição da câmera
+		glm::vec3(0.0f, 0.0f, 0.0f), // Para onde a câmera está olhando
+		glm::vec3(0.0f, 1.0f, 0.0f)  // Vetor para cima
+	);
+
+	GLint viewLoc = glGetUniformLocation(shader.ID, "view");
+	glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+
 	while (!glfwWindowShouldClose(window)) {
 		// Checa se houve eventos de input (key pressed, mouse moved etc.) e chama as funções de callback correspondentes
 		glfwPollEvents();
 
 		// Limpa o buffer de cor
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f); //cor de fundo
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // cor de fundo
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		angle = (float)glfwGetTime();
@@ -540,7 +567,6 @@ int mtlTextureName(string filepath) {
 			ssline >> word;
 
 			if (word == "map_Kd") {
-				cout << "Nome do arquivo da textura a ser aplicada na superfície do material para modificar sua aparência difusa:\n" << sline << endl;
 				return 0;
 			}
 		}
