@@ -15,7 +15,7 @@
 \
 ![Modulo3-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/24e21a71-4d4b-4c8a-8241-fc2cc3fa0d40)
 
-**Módulo 4 Link**: [Projeto Módulo 3](https://github.com/nicofrohlich/AtividadesCG/tree/main/M%C3%B3dulo%204)
+**Módulo 4 Link**: [Projeto Módulo 4](https://github.com/nicofrohlich/AtividadesCG/tree/main/M%C3%B3dulo%204)
 
 ![Modulo4-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/be615470-f5f4-4df9-b2bd-e55ef2a91c73)
 
