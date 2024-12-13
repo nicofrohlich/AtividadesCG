@@ -42,7 +42,7 @@ int setupSprite();
 int loadTexture(string path);
 int loadSimpleObj(string filepath, int& nVerts, glm::vec3 color);
 int mtlTextureName(string filepath);
-void controlRender(glm::mat4 model, float angle, GLuint shaderID);
+void controlRender(glm::mat4& model, float angle, GLuint shaderID);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 
 
@@ -75,7 +75,6 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 }
 
 int main() {
-
 	glm::vec3 lightPos(1.2f, 1.0f, 2.0f);  // Posição da luz
 	glm::vec3 viewPos(0.0f, 0.0f, 3.0f);   // Posição da câmera
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f); // Cor da luz branca
@@ -88,6 +87,11 @@ int main() {
 
 	// Criação da janela GLFW
 	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Ola 3D -- Nicolas Freitas!", nullptr, nullptr);
+	if (!window) {
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
 	glfwMakeContextCurrent(window);
 
 	glfwSetScrollCallback(window, scroll_callback);
@@ -98,7 +102,9 @@ int main() {
 	// GLAD: carrega todos os ponteiros de funções da OpenGL
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 		std::cout << "Failed to initialize GLAD" << std::endl;
+		return -1;
 	}
+
 
 	// Obtendo as informações de versão
 	const GLubyte* renderer = glGetString(GL_RENDERER);
@@ -120,6 +126,13 @@ int main() {
 	// Gerando uma geometria de quadrilátero com coordenadas de textura
 	int nVerts;
 	GLuint VAO = loadSimpleObj("../../3D_Models/Cube/cube.obj", nVerts, glm::vec3(0, 0, 0));
+
+	// Carregar a textura para o planeta
+	GLuint planetaTexID = loadTexture("../../3D_Models/Planetas/Terra.jpg");
+
+	// Carregar o modelo do planeta
+	int nVertsPlaneta;
+	GLuint planetaVAO = loadSimpleObj("../../3D_Models/Planetas/planeta.obj", nVertsPlaneta, glm::vec3(1.0f, 1.0f, 1.0f));
 
 	// Lendo o caminho da textura do arquivo mtl
 	mtlTextureName("../../3D_Models/Cube/cube.mtl");
@@ -159,35 +172,56 @@ int main() {
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	while (!glfwWindowShouldClose(window)) {
-
-		projection = glm::perspective(glm::radians(fov), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-		// Checa se houve eventos de input (key pressed, mouse moved etc.) e chama as funções de callback correspondentes
-		glfwPollEvents();
-
-		// Limpa o buffer de cor
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // cor de fundo
+		// Limpar os buffers de cor e profundidade
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		angle = (float)glfwGetTime();
-		controlRender(model, angle, shader.ID);
+		// Usar o shader
+		glUseProgram(shader.ID);
 
-		// Ativando o primeiro buffer de textura (0) e conectando ao identificador gerado
+		// Atualizar a matriz de projeção
+		projection = glm::perspective(glm::radians(fov), (float)WIDTH / (float)HEIGHT, 0.1f, 100.0f);
+		GLint projLoc = glGetUniformLocation(shader.ID, "projection");
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+		// Atualizar a matriz de visualização
+		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+		GLint viewLoc = glGetUniformLocation(shader.ID, "view");
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+
+		// Atualizar a posição da luz para acompanhar a câmera
+		glm::vec3 lightPos = cameraPos;
+		glUniform3fv(glGetUniformLocation(shader.ID, "lightPos"), 1, glm::value_ptr(lightPos));
+
+		// --- Renderizar o Planeta ---
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, planetaTexID);
+
+		glm::mat4 planetaModel = glm::mat4(1.0f);
+		planetaModel = glm::translate(planetaModel, glm::vec3(2.0f, 0.0f, -5.0f));
+		controlRender(planetaModel, angle, shader.ID);
+
+		glBindVertexArray(planetaVAO);
+		glDrawArrays(GL_TRIANGLES, 0, nVertsPlaneta);
+		glBindVertexArray(0);
+
+		// --- Renderizar o Cubo ---
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, texID);
 
-		// Poligono Preenchido - GL_TRIANGLES
+		glm::mat4 cubeModel = glm::mat4(1.0f);
+		cubeModel = glm::translate(cubeModel, glm::vec3(-2.0f, 0.0f, -5.0f));
+		controlRender(cubeModel, angle, shader.ID);
+
 		glBindVertexArray(VAO);
 		glDrawArrays(GL_TRIANGLES, 0, nVerts);
-
-		// Precisa dar unbind dentro do loop?
-		glBindVertexArray(0); // unbind - desconecta
-		glBindTexture(GL_TEXTURE_2D, 0); // unbind da textura
+		glBindVertexArray(0);
 
 		// Troca os buffers da tela
 		glfwSwapBuffers(window);
+		glfwPollEvents();
 	}
+
 	// Pede pra OpenGL desalocar os buffers
 	glDeleteVertexArrays(1, &VAO);
 	// Finaliza a execução da GLFW, limpando os recursos alocados por ela
@@ -231,65 +265,26 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 // estiver dentro de uma classe) - É chamada sempre que uma tecla for pressionada
 // ou solta via GLFW
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode) {
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+	const float cameraSpeed = 0.05f;
+
+	if (key == GLFW_KEY_W && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+		cameraPos += cameraSpeed * cameraFront;
+	}
+	if (key == GLFW_KEY_S && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+		cameraPos -= cameraSpeed * cameraFront;
+	}
+	if (key == GLFW_KEY_A && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	}
+	if (key == GLFW_KEY_D && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	}
+
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, GL_TRUE);
-
-	if (key == GLFW_KEY_X && action == GLFW_PRESS) {
-		rotateX = true;
-		rotateY = false;
-		rotateZ = false;
-	}
-
-	if (key == GLFW_KEY_Y && action == GLFW_PRESS) {
-		rotateX = false;
-		rotateY = true;
-		rotateZ = false;
-	}
-
-	if (key == GLFW_KEY_Z && action == GLFW_PRESS) {
-		rotateX = false;
-		rotateY = false;
-		rotateZ = true;
-	}
-
-	if (key == GLFW_KEY_W && action == GLFW_PRESS) {
-		transY += 0.1f;
-	}
-
-	if (key == GLFW_KEY_A && action == GLFW_PRESS) {
-		transX -= 0.1f;
-	}
-
-	if (key == GLFW_KEY_S && action == GLFW_PRESS) {
-		transY -= 0.1f;
-	}
-
-	if (key == GLFW_KEY_D && action == GLFW_PRESS) {
-		transX += 0.1f;
-	}
-
-	if (key == GLFW_KEY_I && action == GLFW_PRESS) {
-		transZ += 0.2f;
-	}
-
-	if (key == GLFW_KEY_J && action == GLFW_PRESS) {
-		transZ -= 0.2f;
-	}
-
-	if (key == GLFW_KEY_LEFT_BRACKET && action == GLFW_PRESS) {
-		scale -= 0.3f;
-	}
-
-	if (key == GLFW_KEY_RIGHT_BRACKET && action == GLFW_PRESS) {
-		scale += 0.3f;
-	}
-
-	if (key == GLFW_KEY_Q && action == GLFW_PRESS) {
-		rotateX = true;
-		rotateY = true;
-		rotateZ = true;
 	}
 }
+
 
 // Esta função está bastante harcoded - objetivo é criar os buffers que armazenam a 
 // geometria de um cubo
@@ -472,6 +467,7 @@ int loadTexture(string path) {
 	unsigned char* data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
 
 	if (data) {
+		std::cout << "Textura carregada com sucesso: " << path << std::endl;
 		if (nrChannels == 3) {
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 		}
@@ -501,6 +497,7 @@ int loadSimpleObj(string filepath, int& nVerts, glm::vec3 color) {
 	ifstream inputFile;
 	inputFile.open(filepath.c_str());
 	if (inputFile.is_open()) {
+		std::cout << "Arquivo OBJ carregado com sucesso: " << filepath << std::endl;
 		char line[100];
 		string sline;
 
@@ -633,10 +630,7 @@ int mtlTextureName(string filepath) {
 	return 1;
 }
 
-void controlRender(glm::mat4 model, float angle, GLuint shaderID) {
-	model = glm::mat4(1);
-	model = glm::translate(model, glm::vec3(transX, transY, transZ));
-
+void controlRender(glm::mat4& model, float angle, GLuint shaderID) {
 	if (rotateX && rotateY && rotateZ) {
 		model = glm::rotate(model, angle, glm::vec3(1.0f, 1.0f, 1.0f));
 	}
@@ -650,8 +644,9 @@ void controlRender(glm::mat4 model, float angle, GLuint shaderID) {
 		model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
 	}
 
+	model = glm::translate(model, glm::vec3(transX, transY, transZ));
 	model = glm::scale(model, glm::vec3(scale, scale, scale));
 
 	GLint modelLoc = glGetUniformLocation(shaderID, "model");
-	glUniformMatrix4fv(modelLoc, 1, FALSE, glm::value_ptr(model));
+	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 }
