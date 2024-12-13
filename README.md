@@ -25,7 +25,7 @@
 **Módulo 5 e GB Link**: [Projeto Módulo 5 e GB](https://github.com/nicofrohlich/AtividadesCG/tree/main/M%C3%B3dulo%205)
 \
 \
-![Modulo5eGB-ezgif com-video-to-gif-converter (1)](https://github.com/user-attachments/assets/cb35e6ed-c05a-4b03-8294-b169b6b8e8f4)
+![Modulo5eGB-ezgif com-video-to-gif-converter (2)](https://github.com/user-attachments/assets/66461f9e-15ac-400d-8886-6a219d0433b4)
 
 
 
